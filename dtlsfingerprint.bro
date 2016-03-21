@@ -1,3 +1,5 @@
+@load base/files/x509
+@load base/protocols/ssl
 
 module dtlsparse;
 
@@ -39,14 +41,17 @@ function log_record(info: Info)
 
 function finish(c: connection)
     {
-    if ( ! c$ssl?$cert_chain || |c$ssl$cert_chain| == 0 || ! c$ssl$cert_chain[0]?$x509 || ! c$ssl$cert_chain[0]?$sha1 ){
-        return;
-    }
-    local cert = c$ssl$cert_chain[0]$x509$certificate;
     local l:Info;
-    l=c$dtls;
-    l$validity = cert$not_valid_after-cert$not_valid_before;
-    log_record(l);
+    if ( ! c$ssl?$cert_chain || |c$ssl$cert_chain| == 0 || ! c$ssl$cert_chain[0]?$x509 ){
+        l=c$dtls;
+        log_record(l);
+    }
+    else{
+        local cert = c$ssl$cert_chain[0]$x509$certificate;
+        l=c$dtls;
+        l$validity = cert$not_valid_after-cert$not_valid_before;
+        log_record(l);
+    }
     }
 
 event bro_init()
