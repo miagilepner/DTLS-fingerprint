@@ -77,7 +77,13 @@ event ssl_server_hello(c: connection, version: count, possible_ts: time, server_
             l$cipher=cipher;
             l$compmethod = comp_method;
             c$dtls=l;
-        } 
+        }
+        else{
+            local d = set_session(version);
+            d$cipher = cipher;
+            d$compmethod = comp_method;
+            c$dtls=d;
+        }
     }
     }
 
