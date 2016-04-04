@@ -16,6 +16,7 @@ export {
         compmethod:  count         &log &optional;
         sextensions: set[count]    &log &optional;
         validity:    interval      &log &optional; 
+        cfingerprint:string        &log &optional;
     };
     global log_dtls: event(rec: Info);
     }
@@ -39,19 +40,43 @@ function log_record(info: Info)
       Log::write(dtlsparse::LOG, info);
     }
 
+# Return a client DTLS fingerprint similar to this form:
+# https://github.com/majek/p0f/blob/6b1570c6caf8e6c4de0d67e72eb6892030223b01/docs/README#L716
+# In the "sslver" field we use a string like "DTLSv1.0".
+function make_client_fingerprint(dtls: Info): string
+    {
+    local ciphers_hex: vector of string;
+    local cextensions_hex: vector of string;
+    local flags: vector of string;
+    for (i in dtls$ciphers) {
+        ciphers_hex[i] = fmt("%x", dtls$ciphers[i]);
+    }
+    for (j in dtls$cextensions) {
+        cextensions_hex[j] = fmt("%x", dtls$cextensions[j]);
+    }
+    if (dtls$compmethod == 1) {
+        flags[|flags|] = "compr";
+    }
+    return cat_sep(":", "",
+        SSL::version_strings[dtls$version],
+        join_string_vec(ciphers_hex, ","),
+        join_string_vec(cextensions_hex, ","),
+        join_string_vec(flags, ","));
+    }
+
 function finish(c: connection)
     {
     local l:Info;
+    l=c$dtls;
+    l$cfingerprint = make_client_fingerprint(l);
     if ( ! c$ssl?$cert_chain || |c$ssl$cert_chain| == 0 || ! c$ssl$cert_chain[0]?$x509 ){
-        l=c$dtls;
         log_record(l);
     }
     else{
         local cert = c$ssl$cert_chain[0]$x509$certificate;
-        l=c$dtls;
         l$validity = cert$not_valid_after-cert$not_valid_before;
-        log_record(l);
     }
+    log_record(l);
     }
 
 event bro_init()
