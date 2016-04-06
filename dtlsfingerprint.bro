@@ -37,7 +37,7 @@ function set_session(version: count): Info
 
 function log_record(info: Info)
     {
-      Log::write(dtlsparse::LOG, info);
+    Log::write(dtlsparse::LOG, info);
     }
 
 # Return a client DTLS fingerprint similar to this form:
@@ -51,8 +51,11 @@ function make_client_fingerprint(dtls: Info): string
     for (i in dtls$ciphers) {
         ciphers_hex[i] = fmt("%x", dtls$ciphers[i]);
     }
+    local index: count;
+    index = 0;
     for (j in dtls$cextensions) {
-        cextensions_hex[j] = fmt("%x", dtls$cextensions[j]);
+        cextensions_hex[index] = fmt("%x", j);
+        index=index+1;
     }
     if (dtls$compmethod == 1) {
         flags[|flags|] = "compr";
@@ -87,9 +90,11 @@ event bro_init()
 event ssl_client_hello(c: connection, version: count, possible_ts: time, client_random: string, session_id: string, ciphers: index_vec)
     {
     if(version == 65279 || version == 65277){
-        local l = set_session(version);
-        l$ciphers=ciphers;
-        c$dtls=l; 
+        if(!c?$dtls){
+            local l = set_session(version);
+            l$ciphers=ciphers;
+            c$dtls=l;
+        } 
     } 
     }
 
@@ -103,27 +108,26 @@ event ssl_server_hello(c: connection, version: count, possible_ts: time, server_
             l$compmethod = comp_method;
             c$dtls=l;
         }
-        else{
-            local d = set_session(version);
-            d$cipher = cipher;
-            d$compmethod = comp_method;
-            c$dtls=d;
-        }
     }
     }
 
 event ssl_extension(c: connection, is_orig: bool, code: count, val: string)
     {
-    local l: Info;
     if(c?$dtls){
-        l=c$dtls;
         if(is_orig){
-            add l$cextensions[code];
+            #local l: Info; 
+            #l=c$dtls;
+            #add l$cextensions[code];
+            #c$dtls=l;
+            add c$dtls$cextensions[code];
         }
         else{
-            add l$sextensions[code];
+            #local i: Info; 
+            #i=c$dtls;
+            #add i$sextensions[code];
+            #c$dtls=i;
+            add c$dtls$sextensions[code];
         }
-        c$dtls=l;
     }
     }
 
