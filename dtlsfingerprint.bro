@@ -76,9 +76,11 @@ function finish(c: connection)
     local l:Info;
     l=c$dtls;
     l$cfingerprint = make_client_fingerprint(l);
-    l$uid = c$conn$uid;
-    l$ts = c$conn$ts;
-    l$fts = strftime("%FT%T",c$conn$ts);
+    if(c?$conn){
+      l$uid = c$conn$uid;
+      l$ts = c$conn$ts;
+      l$fts = strftime("%FT%T",c$conn$ts);
+    }
     if ( ! c$ssl?$cert_chain || |c$ssl$cert_chain| == 0 || ! c$ssl$cert_chain[0]?$x509 ){
         log_record(l);
     }
