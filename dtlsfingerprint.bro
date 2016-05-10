@@ -13,12 +13,12 @@ export {
         uid:         string        &log &optional;
         version:     count         &log &optional; 
         ciphers:     index_vec     &log &optional;
-        cextensions: set[count]    &log &optional;
+        cextensions: index_vec     &log &optional;
         ecurves:     index_vec     &log &optional;
         cipher:      count         &log &optional;
         curve:       count         &log &optional;
         compmethod:  count         &log &optional;
-        sextensions: set[count]    &log &optional;
+        sextensions: index_vec     &log &optional;
         validity:    interval      &log &optional; 
         cfingerprint:string        &log &optional;
     };
@@ -34,8 +34,8 @@ function set_session(version: count): Info
     {
     local l:Info;
     l$version=version;
-    l$cextensions=set();
-    l$sextensions=set();
+    l$cextensions=vector();
+    l$sextensions=vector();
     return l;
     }
 
@@ -55,11 +55,8 @@ function make_client_fingerprint(dtls: Info): string
     for (i in dtls$ciphers) {
         ciphers_hex[i] = fmt("%x", dtls$ciphers[i]);
     }
-    local index: count;
-    index = 0;
-    for (j in dtls$cextensions) {
-        cextensions_hex[index] = fmt("%x", j);
-        index=index+1;
+    for (i in dtls$cextensions) {
+        cextensions_hex[i] = fmt("%x", dtls$cextensions[i]);
     }
     if (dtls$compmethod == 1) {
         flags[|flags|] = "compr";
@@ -128,14 +125,14 @@ event ssl_extension(c: connection, is_orig: bool, code: count, val: string)
             #l=c$dtls;
             #add l$cextensions[code];
             #c$dtls=l;
-            add c$dtls$cextensions[code];
+            c$dtls$cextensions[|c$dtls$cextensions|] = code;
         }
         else{
             #local i: Info; 
             #i=c$dtls;
             #add i$sextensions[code];
             #c$dtls=i;
-            add c$dtls$sextensions[code];
+            c$dtls$sextensions[|c$dtls$sextensions|] = code;
         }
     }
     }
