@@ -3,6 +3,20 @@
 
 module dtlsparse;
 
+redef record SSL::Info += {
+    # These are numeric versions of SSL::Info's $version and $cipher,
+    # which are resolved into strings.
+    numversion:  count     &optional;
+    numcipher:   count     &optional;
+    numcurve:    count     &optional;
+
+    ciphers:     index_vec &optional;
+    cextensions: index_vec &optional;
+    ecurves:     index_vec &optional;
+    compmethod:  count     &optional;
+    sextensions: index_vec &optional;
+};
+
 export {
     redef enum Log::ID += { LOG };
 
@@ -25,20 +39,6 @@ export {
     global log_dtls: event(rec: Info);
     }
 
-redef record connection +={
-      dtls: Info &optional;
-    };
-
-
-function set_session(version: count): Info 
-    {
-    local l:Info;
-    l$version=version;
-    l$cextensions=vector();
-    l$sextensions=vector();
-    return l;
-    }
-
 function log_record(info: Info)
     {
     Log::write(dtlsparse::LOG, info);
@@ -47,22 +47,22 @@ function log_record(info: Info)
 # Return a client DTLS fingerprint similar to this form:
 # https://github.com/majek/p0f/blob/6b1570c6caf8e6c4de0d67e72eb6892030223b01/docs/README#L716
 # In the "sslver" field we use a string like "DTLSv1.0".
-function make_client_fingerprint(dtls: Info): string
+function make_client_fingerprint(ssl: SSL::Info): string
     {
     local ciphers_hex: vector of string;
     local cextensions_hex: vector of string;
     local flags: vector of string;
-    for (i in dtls$ciphers) {
-        ciphers_hex[i] = fmt("%x", dtls$ciphers[i]);
+    for (i in ssl$ciphers) {
+        ciphers_hex[i] = fmt("%x", ssl$ciphers[i]);
     }
-    for (i in dtls$cextensions) {
-        cextensions_hex[i] = fmt("%x", dtls$cextensions[i]);
+    for (i in ssl$cextensions) {
+        cextensions_hex[i] = fmt("%x", ssl$cextensions[i]);
     }
-    if (dtls$compmethod == 1) {
+    if (ssl$compmethod == 1) {
         flags[|flags|] = "compr";
     }
     return cat_sep(":", "",
-        SSL::version_strings[dtls$version],
+        ssl$version,
         join_string_vec(ciphers_hex, ","),
         join_string_vec(cextensions_hex, ","),
         join_string_vec(flags, ","));
@@ -70,21 +70,34 @@ function make_client_fingerprint(dtls: Info): string
 
 function finish(c: connection)
     {
-    local l:Info;
-    l=c$dtls;
-    l$cfingerprint = make_client_fingerprint(l);
-    if(c?$conn){
-      l$uid = c$conn$uid;
-      l$ts = c$conn$ts;
-      l$fts = strftime("%FT%T",c$conn$ts);
-    }
-    if ( ! c$ssl?$cert_chain || |c$ssl$cert_chain| == 0 || ! c$ssl$cert_chain[0]?$x509 ){
-        log_record(l);
-    }
-    else{
+    if ( ! (c?$ssl && c$ssl$version in set("DTLSv10", "DTLSv12")) )
+        return;
+
+    local l = Info($ts  = c$ssl$ts,
+                   $fts = strftime("%FT%T", c$ssl$ts),
+                   $uid = c$ssl$uid);
+    if ( c$ssl?$numversion )
+        l$version = c$ssl$numversion;
+    if ( c$ssl?$ciphers )
+        l$ciphers = c$ssl$ciphers;
+    if ( c$ssl?$cextensions )
+        l$cextensions = c$ssl$cextensions;
+    if ( c$ssl?$ecurves )
+        l$ecurves = c$ssl$ecurves;
+    if ( c$ssl?$numcipher )
+        l$cipher = c$ssl$numcipher;
+    if ( c$ssl?$numcurve )
+        l$curve = c$ssl$numcurve;
+    if ( c$ssl?$compmethod)
+        l$compmethod = c$ssl$compmethod;
+    if ( c$ssl?$sextensions )
+        l$sextensions = c$ssl$sextensions;
+    l$cfingerprint = make_client_fingerprint(c$ssl);
+    if ( c$ssl?$cert_chain && |c$ssl$cert_chain| > 0 && c$ssl$cert_chain[0]?$x509 )
+        {
         local cert = c$ssl$cert_chain[0]$x509$certificate;
         l$validity = cert$not_valid_after-cert$not_valid_before;
-    }
+        }
     log_record(l);
     }
 
@@ -95,65 +108,43 @@ event bro_init()
 
 event ssl_client_hello(c: connection, version: count, possible_ts: time, client_random: string, session_id: string, ciphers: index_vec)
     {
-    if(version == 65279 || version == 65277){
-        if(!c?$dtls){
-            local l = set_session(version);
-            l$ciphers=ciphers;
-            c$dtls=l;
-        } 
-    } 
+    c$ssl$ciphers = ciphers;
     }
 
 event ssl_server_hello(c: connection, version: count, possible_ts: time, server_random: string, session_id: string, cipher: count, comp_method: count)
     {
-    if(version == 65279 || version == 65277){
-        if(c?$dtls){
-            local l: Info;
-            l = c$dtls; 
-            l$cipher=cipher;
-            l$compmethod = comp_method;
-            c$dtls=l;
-        }
-    }
+    c$ssl$numversion = version;
+    c$ssl$numcipher = cipher;
+    c$ssl$compmethod = comp_method;
     }
 
 event ssl_extension(c: connection, is_orig: bool, code: count, val: string)
     {
-    if(c?$dtls){
-        if(is_orig){
-            #local l: Info; 
-            #l=c$dtls;
-            #add l$cextensions[code];
-            #c$dtls=l;
-            c$dtls$cextensions[|c$dtls$cextensions|] = code;
+    if ( is_orig )
+        {
+        if ( ! c$ssl?$cextensions )
+            c$ssl$cextensions = index_vec();
+        c$ssl$cextensions[|c$ssl$cextensions|] = code;
         }
-        else{
-            #local i: Info; 
-            #i=c$dtls;
-            #add i$sextensions[code];
-            #c$dtls=i;
-            c$dtls$sextensions[|c$dtls$sextensions|] = code;
+    else
+        {
+        if ( ! c$ssl?$sextensions )
+            c$ssl$sextensions = index_vec();
+        c$ssl$sextensions[|c$ssl$sextensions|] = code;
         }
-    }
     }
 
 event ssl_established(c: connection)
     {
-        if(c?$dtls){
-          finish(c);
-        }
+    finish(c);
     }
+
 event ssl_alert(c: connection, is_orig: bool, level: count, desc: count)
     {
-        if(c?$dtls){
-          finish(c);
-        }
+    finish(c);
     }
 
 event connection_state_remove(c: connection)
     {
-        if(c?$dtls){
-            finish(c);
-        }
+    finish(c);
     }
-
