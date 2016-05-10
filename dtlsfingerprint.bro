@@ -50,11 +50,17 @@ function make_client_fingerprint(ssl: SSL::Info): string
     local ciphers_hex: vector of string;
     local cextensions_hex: vector of string;
     local flags: vector of string;
-    for ( i in ssl$ciphers )
-        ciphers_hex[i] = fmt("%x", ssl$ciphers[i]);
-    for ( i in ssl$cextensions )
-        cextensions_hex[i] = fmt("%x", ssl$cextensions[i]);
-    if ( ssl$compmethod == 1 )
+    if ( ssl?$ciphers )
+        {
+        for ( i in ssl$ciphers )
+            ciphers_hex[i] = fmt("%x", ssl$ciphers[i]);
+        }
+    if ( ssl?$cextensions )
+        {
+        for ( i in ssl$cextensions )
+            cextensions_hex[i] = fmt("%x", ssl$cextensions[i]);
+        }
+    if ( ssl?$compmethod && ssl$compmethod == 1 )
         flags[|flags|] = "compr";
     return cat_sep(":", "",
         ssl$version,
