@@ -1,5 +1,14 @@
+@load base/frameworks/packet-filter
 @load base/files/x509
 @load base/protocols/ssl
+
+# There seems to be a bug in DTLS protocol detection when a STUN packet
+# intercedes in a DTLS stream. It ends the connection and causes a
+# message in dpd.log:
+#   Invalid version in DTLS connection. Packet reported version: 256
+# 0x2112a442 is a magic number that identifies STUN packets (RFC 5389).
+# Just ignore all of them.
+redef restrict_filters += [["exclude STUN"] = "udp[12:4]!=0x2112a442"];
 
 module dtlsparse;
 
