@@ -143,8 +143,3 @@ event ssl_alert(c: connection, is_orig: bool, level: count, desc: count)
     {
     finish(c);
     }
-
-event connection_state_remove(c: connection)
-    {
-    finish(c);
-    }
