@@ -20,10 +20,10 @@ redef record SSL::Info += {
 export {
     redef enum Log::ID += { LOG };
 
-    type Info: record{
+    type Info: record {
         ts:          time          &log &optional;
         uid:         string        &log &optional;
-        version:     count         &log &optional; 
+        version:     count         &log &optional;
         ciphers:     index_vec     &log &optional;
         cextensions: index_vec     &log &optional;
         ecurves:     index_vec     &log &optional;
@@ -31,7 +31,7 @@ export {
         curve:       count         &log &optional;
         compmethod:  count         &log &optional;
         sextensions: index_vec     &log &optional;
-        validity:    interval      &log &optional; 
+        validity:    interval      &log &optional;
         cfingerprint:string        &log &optional;
     };
     global log_dtls: event(rec: Info);
@@ -50,15 +50,12 @@ function make_client_fingerprint(ssl: SSL::Info): string
     local ciphers_hex: vector of string;
     local cextensions_hex: vector of string;
     local flags: vector of string;
-    for (i in ssl$ciphers) {
+    for ( i in ssl$ciphers )
         ciphers_hex[i] = fmt("%x", ssl$ciphers[i]);
-    }
-    for (i in ssl$cextensions) {
+    for ( i in ssl$cextensions )
         cextensions_hex[i] = fmt("%x", ssl$cextensions[i]);
-    }
-    if (ssl$compmethod == 1) {
+    if ( ssl$compmethod == 1 )
         flags[|flags|] = "compr";
-    }
     return cat_sep(":", "",
         ssl$version,
         join_string_vec(ciphers_hex, ","),
