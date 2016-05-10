@@ -134,6 +134,16 @@ event ssl_extension(c: connection, is_orig: bool, code: count, val: string)
         }
     }
 
+event ssl_extension_elliptic_curves(c: connection, is_orig: bool, curves: index_vec)
+    {
+    c$ssl$ecurves = curves;
+    }
+
+event ssl_server_curve(c: connection, curve: count)
+    {
+    c$ssl$numcurve = curve;
+    }
+
 event ssl_established(c: connection)
     {
     finish(c);
