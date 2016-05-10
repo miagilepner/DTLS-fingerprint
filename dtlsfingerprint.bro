@@ -22,8 +22,6 @@ export {
 
     type Info: record{
         ts:          time          &log &optional;
-        #formatted time stamp
-        fts:         string        &log &optional;
         uid:         string        &log &optional;
         version:     count         &log &optional; 
         ciphers:     index_vec     &log &optional;
@@ -74,7 +72,6 @@ function finish(c: connection)
         return;
 
     local l = Info($ts  = c$ssl$ts,
-                   $fts = strftime("%FT%T", c$ssl$ts),
                    $uid = c$ssl$uid);
     if ( c$ssl?$numversion )
         l$version = c$ssl$numversion;
